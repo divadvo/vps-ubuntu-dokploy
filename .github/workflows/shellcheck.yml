@@ -1,12 +1,13 @@
 name: ShellCheck
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
-    paths: ['*.sh']
   pull_request:
     branches: [main]
-    paths: ['*.sh']
 
 jobs:
   shellcheck:
