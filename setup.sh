@@ -1530,14 +1530,14 @@ EOF
         # it fails when ssh.service is active and causes ECONNREFUSED).
         # The standalone sshd continues serving the custom port until reboot,
         # then ssh.socket takes over automatically.
-        sudo mkdir -p /etc/systemd/system/ssh.socket.d
-        sudo tee /etc/systemd/system/ssh.socket.d/override.conf > /dev/null << EOF
+        sudo mkdir -p /etc/systemd/system/ssh.socket.d || error "Failed to create ssh.socket drop-in directory"
+        sudo tee /etc/systemd/system/ssh.socket.d/override.conf > /dev/null << EOF || error "Failed to write ssh.socket override"
 [Socket]
 ListenStream=
 ListenStream=0.0.0.0:$SSH_PORT
 ListenStream=[::]:$SSH_PORT
 EOF
-        sudo systemctl daemon-reload
+        sudo systemctl daemon-reload || error "systemctl daemon-reload failed"
 
         # Reload standalone sshd to pick up the new hardening.conf
         if [ -f /run/sshd-hardened.pid ]; then
@@ -1550,7 +1550,7 @@ EOF
 
         sudo ufw delete allow 22/tcp > /dev/null 2>&1 || true
 
-        sudo tee /etc/fail2ban/jail.local > /dev/null << EOF
+        sudo tee /etc/fail2ban/jail.local > /dev/null << EOF || error "Failed to write fail2ban config"
 [sshd]
 enabled = true
 port = $SSH_PORT
@@ -1563,20 +1563,20 @@ findtime = 300
 bantime.increment = true
 bantime.factor = 2
 EOF
-        sudo systemctl restart fail2ban
+        sudo systemctl restart fail2ban || error "Failed to restart fail2ban"
 
-        sudo ufw limit "$SSH_PORT/tcp" > /dev/null
-        sudo ufw delete allow "$SSH_PORT/tcp" > /dev/null
+        sudo ufw limit "$SSH_PORT/tcp" > /dev/null || error "Failed to limit SSH port in UFW"
+        sudo ufw delete allow "$SSH_PORT/tcp" > /dev/null || error "Failed to delete UFW allow rule for SSH port"
 
         # Lock audit rules now that setup is confirmed
-        echo "-e 2" | sudo tee -a /etc/audit/rules.d/hardening.rules > /dev/null
+        echo "-e 2" | sudo tee -a /etc/audit/rules.d/hardening.rules > /dev/null || error "Failed to lock audit rules"
         sudo systemctl restart auditd 2>/dev/null || true
         log "Audit rules locked (immutable)"
 
         # Remove temporary setup files (keep sshd_test_config — standalone sshd needs it until reboot)
         sudo rm -f /etc/ssh/sshd_config.d/zz-setup-keepalive.conf
 
-        sudo sed -i 's/STATUS=pending_confirm/STATUS=complete/' "$USER_HOME/.vps_setup_summary"
+        sudo sed -i 's/STATUS=pending_confirm/STATUS=complete/' "$USER_HOME/.vps_setup_summary" || error "Failed to update setup summary status"
         checkpoint_clear
         log "Port 22 closed, password auth disabled, rebooting to finalize"
 
