@@ -337,7 +337,7 @@ The script applies a production-oriented hardening baseline with **5 security la
 
 | Feature | Details |
 |---------|---------|
-| Screen session | Both scripts run inside `screen` — survives SSH disconnection. Reconnect with `sudo screen -r hardening` (or `sudo screen -r dokploy-install`). A recovery file is saved at `/root/.vps_screen_recovery`. |
+| Screen session | Auto-launched in `screen` — survives SSH drops. Reconnect with `sudo screen -r hardening`. If the script errors, screen pauses until you press Enter so you can read the output. Recovery file: `/root/.vps_screen_recovery`. |
 | Input-first design | All questions asked before any system changes — if SSH drops during input, nothing is modified |
 | Error trap | Restores SSH access on port 22 if setup fails |
 | Config backup | `sshd_config.bak` saved before changes |
@@ -363,20 +363,22 @@ The script applies a production-oriented hardening baseline with **5 security la
 <details>
 <summary><strong>What if my SSH session drops during setup?</strong></summary>
 
-The script runs inside `screen` as `root`. Reconnect to your server and run:
+The script auto-launches inside `screen` as `root`. Reconnect and reattach:
 
 ```bash
 sudo screen -r hardening
 ```
 
-If that fails, try:
+If that fails:
 ```bash
 sudo screen -dr hardening
 ```
 
-A recovery file is also saved at `/root/.vps_screen_recovery` with these commands.
+> **Note:** `screen -r` only works while the script is still running. If the script completed or crashed, the screen session has ended. In that case, just re-run `./setup.sh` — the hardening steps are idempotent.
 
-If the script was in Phase 2 (applying hardening), it continued running. If it was in Phase 1 (asking questions), nothing was modified — just restart the script.
+If the script hits an error now, screen pauses and waits for you to press Enter so you can read the output before it closes.
+
+A recovery file is saved at `/root/.vps_screen_recovery`.
 
 </details>
 

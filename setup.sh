@@ -62,6 +62,9 @@ If that fails, run:
 Then continue at the CONFIRM step manually.
 EOF
 
+# Keep screen alive on error so the user can see what went wrong
+trap 'code=$?; if [ "$code" -ne 0 ] && [ -n "${STY:-}" ]; then echo ""; echo "  Script failed (exit $code). Review the output above, then press Enter to close."; read -r; fi' EXIT
+
 # === CONFIGURATION ===
 CURRENT_USER="${SUDO_USER:-$(whoami)}"
 MAX_PORT_ATTEMPTS=10
@@ -1150,7 +1153,9 @@ if gum confirm "Install Cloudflare Tunnel (cloudflared) for web traffic?"; then
     local CLOUD_KEYRING_TMP
     CLOUD_KEYRING_TMP=$(mktemp)
     curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o "$CLOUD_KEYRING_TMP" 2>/dev/null || {
-        error "Failed to download Cloudflare GPG key"
+        warn "Failed to download Cloudflare GPG key — skipping cloudflared"
+        rm -f "$CLOUD_KEYRING_TMP"
+        return
     }
     sudo gpg --yes --dearmor -o /etc/apt/keyrings/cloudflare.gpg < "$CLOUD_KEYRING_TMP" 2>/dev/null
     rm -f "$CLOUD_KEYRING_TMP"
