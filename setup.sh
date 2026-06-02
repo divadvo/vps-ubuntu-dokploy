@@ -527,28 +527,32 @@ while true; do
         continue
     fi
     if id "$NEW_USER" &>/dev/null; then
-        warn "User '$NEW_USER' already exists. Choose a different admin username."
-        continue
+        log "User '$NEW_USER' already exists — using it as-is."
+        break
     fi
     break
 done
 
-# --- Collect password ---
-input_banner "Set password for $NEW_USER (min 12 chars, mixed case, numbers, symbols)"
-while true; do
-    PASS1=$(gum input --password --placeholder "Password (min 12 chars)" --prompt "> " --prompt.foreground 6)
-    PASS2=$(gum input --password --placeholder "Confirm password" --prompt "> " --prompt.foreground 6)
-    if [ -z "$PASS1" ]; then
-        warn "Password cannot be empty"; continue
-    fi
-    if [ ${#PASS1} -lt 12 ]; then
-        warn "Password must be at least 12 characters"; continue
-    fi
-    if [ "$PASS1" != "$PASS2" ]; then
-        warn "Passwords don't match"; continue
-    fi
-    break
-done
+if ! id "$NEW_USER" &>/dev/null; then
+    # --- Collect password ---
+    input_banner "Set password for $NEW_USER (min 12 chars, mixed case, numbers, symbols)"
+    while true; do
+        PASS1=$(gum input --password --placeholder "Password (min 12 chars)" --prompt "> " --prompt.foreground 6)
+        PASS2=$(gum input --password --placeholder "Confirm password" --prompt "> " --prompt.foreground 6)
+        if [ -z "$PASS1" ]; then
+            warn "Password cannot be empty"; continue
+        fi
+        if [ ${#PASS1} -lt 12 ]; then
+            warn "Password must be at least 12 characters"; continue
+        fi
+        if [ "$PASS1" != "$PASS2" ]; then
+            warn "Passwords don't match"; continue
+        fi
+        break
+    done
+else
+    PASS1=""
+fi
 
 # --- Collect SSH key ---
 SSH_METHOD=$(gum choose --header "How would you like to configure SSH?" \
