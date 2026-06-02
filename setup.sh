@@ -65,16 +65,6 @@ EOF
 # Keep screen alive on error so the user can see what went wrong
 trap 'code=$?; if [ "$code" -ne 0 ] && [ -n "${STY:-}" ]; then echo ""; echo "  Script failed (exit $code). Review the output above, then press Enter to close."; read -r; fi' EXIT
 
-# === RESUME CHECK ===
-RESUME_MODE=false
-if checkpoint_load; then
-    RESUME_MODE=true
-    echo ""
-    echo "  >>> Resuming from checkpoint — skipping completed steps <<<"
-    echo ""
-    sleep 1
-fi
-
 # === CONFIGURATION ===
 CURRENT_USER="${SUDO_USER:-$(whoami)}"
 MAX_PORT_ATTEMPTS=10
@@ -138,6 +128,18 @@ checkpoint_load() {
 checkpoint_clear() {
     sudo rm -f "$CHECKPOINT_FILE"
 }
+
+# === RESUME CHECK ===
+RESUME_MODE=false
+if checkpoint_load; then
+    RESUME_MODE=true
+    # Override the random SSH_PORT with the checkpoint value
+    SSH_PORT="$SSH_PORT"
+    echo ""
+    echo "  >>> Resuming from checkpoint — skipping completed steps <<<"
+    echo ""
+    sleep 1
+fi
 
 # === CLEANUP TRAP ===
 SETUP_PHASE="init"
@@ -686,10 +688,12 @@ else
     warn "No hostname provided — keeping current: $(hostname)"
 fi
 
-sudo adduser --gecos "" --disabled-password "$NEW_USER"
-sudo chpasswd <<< "$NEW_USER:$PASS1"
-PASS1=""; PASS2=""
-unset PASS1 PASS2
+id "$NEW_USER" &>/dev/null || sudo adduser --gecos "" --disabled-password "$NEW_USER"
+if [ -n "${PASS1:-}" ]; then
+    sudo chpasswd <<< "$NEW_USER:$PASS1"
+    PASS1=""; PASS2=""
+    unset PASS1 PASS2
+fi
 log "User '$NEW_USER' created with password"
 
 sudo usermod -aG sudo "$NEW_USER"
@@ -816,7 +820,7 @@ if [ ! -f /swapfile ]; then
     if [ "$SWAP_SIZE_MB" -gt 0 ]; then
         SWAP_LABEL="$(( SWAP_SIZE_MB / 1024 ))GB"
         run_with_spinner "Creating ${SWAP_LABEL} swap file" bash -c "sudo fallocate -l ${SWAP_SIZE_MB}M /swapfile 2>/dev/null || { sudo rm -f /swapfile && sudo dd if=/dev/zero of=/swapfile bs=1M count=${SWAP_SIZE_MB} status=none; } && sudo chmod 600 /swapfile && sudo mkswap /swapfile > /dev/null && sudo swapon /swapfile"
-        echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
+        grep -q '/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
         if ! grep -q "vm.swappiness" /etc/sysctl.conf; then
             echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf > /dev/null
             sudo sysctl -p > /dev/null
@@ -837,7 +841,7 @@ FallbackDNS=9.9.9.11 149.112.112.11 2620:fe::11 2620:fe::fe:11
 DNSOverTLS=yes
 DNSSEC=allow-downgrade
 EOF
-sudo systemctl restart systemd-resolved
+sudo systemctl restart systemd-resolved 2>/dev/null || true
 log "Quad9 DNS configured with DNS-over-TLS + DNSSEC (allow-downgrade)"
     checkpoint_mark_done "system_update"
 }
@@ -1005,7 +1009,7 @@ sudo tee /etc/logrotate.d/fail2ban-custom > /dev/null << EOF
 }
 EOF
 
-echo "LOG_RETENTION_DAYS=$LOG_DAYS" | sudo tee -a "$CONFIG_FILE" > /dev/null
+grep -q "^LOG_RETENTION_DAYS=" "$CONFIG_FILE" 2>/dev/null || echo "LOG_RETENTION_DAYS=$LOG_DAYS" | sudo tee -a "$CONFIG_FILE" > /dev/null
 log "Log retention policy configured (${LOG_DAYS} days)"
 
 # Password policy
@@ -1216,6 +1220,9 @@ sudo /usr/sbin/sshd -f /etc/ssh/sshd_test_config || error "Failed to start stand
 log "SSH hardened (port $SSH_PORT)"
 
 # Save config for install-dokploy.sh
+for _ckey in NEW_USER LOG_DAYS LOG_WEEKS CURRENT_USER; do
+    grep -q "^${_ckey}=" "$CONFIG_FILE" 2>/dev/null && sudo sed -i "/^${_ckey}=/d" "$CONFIG_FILE" || true
+done
 {
     echo "NEW_USER=$NEW_USER"
     echo "LOG_DAYS=$LOG_DAYS"
@@ -1231,7 +1238,7 @@ install_cloudflared() {
 # === OPTIONAL: CLOUDFLARED (Cloudflare Tunnel) ===
 # Installs cloudflared and authenticates with Cloudflare.
 # The user must complete authentication via a browser URL.
-if gum confirm "Install Cloudflare Tunnel (cloudflared) for web traffic?"; then
+if tty -s 2>/dev/null && gum confirm "Install Cloudflare Tunnel (cloudflared) for web traffic?"; then
     echo ""
     gum style --bold --foreground 6 "  Installing cloudflared from Cloudflare's official repo..."
     echo ""
