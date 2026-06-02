@@ -65,6 +65,16 @@ EOF
 # Keep screen alive on error so the user can see what went wrong
 trap 'code=$?; if [ "$code" -ne 0 ] && [ -n "${STY:-}" ]; then echo ""; echo "  Script failed (exit $code). Review the output above, then press Enter to close."; read -r; fi' EXIT
 
+# === RESUME CHECK ===
+RESUME_MODE=false
+if checkpoint_load; then
+    RESUME_MODE=true
+    echo ""
+    echo "  >>> Resuming from checkpoint — skipping completed steps <<<"
+    echo ""
+    sleep 1
+fi
+
 # === CONFIGURATION ===
 CURRENT_USER="${SUDO_USER:-$(whoami)}"
 MAX_PORT_ATTEMPTS=10
@@ -86,6 +96,48 @@ LOG_FILE="/var/log/vps_setup.log"
 CONFIG_FILE="/root/.vps_hardening_config"
 TOTAL_STEPS=7
 CURRENT_STEP=0
+
+# === CHECKPOINT / RESUME SYSTEM ===
+CHECKPOINT_FILE="/root/.vps_setup_checkpoint"
+
+checkpoint_save() {
+    sudo tee "$CHECKPOINT_FILE" > /dev/null << EOF
+VERSION=$VERSION
+SSH_PORT=$SSH_PORT
+NEW_USER=$NEW_USER
+INPUT_HOSTNAME=${INPUT_HOSTNAME:-}
+LOG_DAYS=$LOG_DAYS
+LOG_WEEKS=$LOG_WEEKS
+GENERATE_KEY=${GENERATE_KEY:-false}
+INPUT_SSH_KEY=${INPUT_SSH_KEY:-}
+DONE_pre_checks=${DONE_pre_checks:-0}
+DONE_user_creation=${DONE_user_creation:-0}
+DONE_ssh_key=${DONE_ssh_key:-0}
+DONE_system_update=${DONE_system_update:-0}
+DONE_kernel=${DONE_kernel:-0}
+DONE_tools=${DONE_tools:-0}
+DONE_firewall=${DONE_firewall:-0}
+DONE_ssh=${DONE_ssh:-0}
+DONE_cloudflared=${DONE_cloudflared:-0}
+CONFIRMED=${CONFIRMED:-0}
+EOF
+    sudo chmod 600 "$CHECKPOINT_FILE"
+}
+
+checkpoint_mark_done() {
+    local step="$1"
+    sudo sed -i "s/^DONE_${step}=.*/DONE_${step}=1/" "$CHECKPOINT_FILE"
+}
+
+checkpoint_load() {
+    [ -f "$CHECKPOINT_FILE" ] || return 1
+    source "$CHECKPOINT_FILE"
+    return 0
+}
+
+checkpoint_clear() {
+    sudo rm -f "$CHECKPOINT_FILE"
+}
 
 # === CLEANUP TRAP ===
 SETUP_PHASE="init"
@@ -317,6 +369,18 @@ copy_block() {
 # ║  If SSH drops here, just reconnect and restart the script.         ║
 # ╚════════════════════════════════════════════════════════════════════╝
 
+if [ "$RESUME_MODE" = true ]; then
+    echo ""
+    echo "  >>> Resuming from checkpoint — skipping input collection <<<"
+    echo ""
+    gum style --bold --foreground 6 "  Checkpoint loaded:"
+    printf "  Hostname: %s\n" "${INPUT_HOSTNAME:-$(hostname)}"
+    printf "  User:     %s\n" "$NEW_USER"
+    printf "  SSH port: %s\n" "$SSH_PORT"
+    printf "  Log days: %s\n" "$LOG_DAYS"
+    echo ""
+    sleep 1
+else
 clear 2>/dev/null || true
 
 gum style \
@@ -565,6 +629,9 @@ gum style --bold --foreground 2 "  All inputs collected. Starting hardening..."
 gum style --foreground 240 "  If your SSH session drops, reconnect with: sudo screen -r hardening"
 echo ""
 sleep 2
+fi
+
+checkpoint_save
 
 # ╔════════════════════════════════════════════════════════════════════╗
 # ║  PHASE 2 — APPLY HARDENING (non-interactive)                      ║
@@ -574,6 +641,7 @@ sleep 2
 START_TIME=$SECONDS
 
 run_pre_checks() {
+    [ "${DONE_pre_checks:-0}" = "1" ] && return 0
 # === PRE-CHECKS ===
 progress_bar 0 "$TOTAL_STEPS" "Pre-flight checks"
 SETUP_PHASE="pre-checks"
@@ -593,10 +661,12 @@ if ! curl -s --max-time 5 https://api.ipify.org &>/dev/null; then
     error "No internet connection (TCP/443 unreachable)"
 fi
 log "All pre-checks passed"
+    checkpoint_mark_done "pre_checks"
 }
 run_pre_checks
 
 create_secure_user() {
+    [ "${DONE_user_creation:-0}" = "1" ] && return 0
 # === STEP 1: CREATE USER ===
 CURRENT_STEP=1
 progress_bar "$CURRENT_STEP" "$TOTAL_STEPS" "Create secure user"
@@ -623,11 +693,15 @@ unset PASS1 PASS2
 log "User '$NEW_USER' created with password"
 
 sudo usermod -aG sudo "$NEW_USER"
-log "Sudo access granted"
+echo "$NEW_USER ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/99-vps-hardening-admin > /dev/null
+sudo chmod 440 /etc/sudoers.d/99-vps-hardening-admin
+log "Sudo access granted (passwordless for Dokploy)"
+    checkpoint_mark_done "user_creation"
 }
 create_secure_user
 
 configure_ssh_key() {
+    [ "${DONE_ssh_key:-0}" = "1" ] && return 0
 # === STEP 2: SSH KEY ===
 CURRENT_STEP=2
 progress_bar "$CURRENT_STEP" "$TOTAL_STEPS" "Configure SSH key"
@@ -689,10 +763,12 @@ fi
 sudo chmod 700 "/home/$NEW_USER/.ssh"
 sudo chmod 600 "/home/$NEW_USER/.ssh/authorized_keys"
 sudo chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.ssh"
+    checkpoint_mark_done "ssh_key"
 }
 configure_ssh_key
 
 configure_system_baseline() {
+    [ "${DONE_system_update:-0}" = "1" ] && return 0
 # === STEP 3: SYSTEM UPDATE ===
 CURRENT_STEP=3
 progress_bar "$CURRENT_STEP" "$TOTAL_STEPS" "Update system (~2-3 min)"
@@ -763,10 +839,12 @@ DNSSEC=allow-downgrade
 EOF
 sudo systemctl restart systemd-resolved
 log "Quad9 DNS configured with DNS-over-TLS + DNSSEC (allow-downgrade)"
+    checkpoint_mark_done "system_update"
 }
 configure_system_baseline
 
 configure_sysctl() {
+    [ "${DONE_kernel:-0}" = "1" ] && return 0
 # === STEP 4: KERNEL HARDENING ===
 CURRENT_STEP=4
 progress_bar "$CURRENT_STEP" "$TOTAL_STEPS" "Kernel hardening (sysctl)"
@@ -849,10 +927,12 @@ install rds /bin/true
 install tipc /bin/true
 MODPROBE
 log "Uncommon network protocols disabled (dccp, sctp, rds, tipc)"
+    checkpoint_mark_done "kernel"
 }
 configure_sysctl
 
 configure_security_tools() {
+    [ "${DONE_tools:-0}" = "1" ] && return 0
 # === STEP 5: INSTALL SECURITY TOOLS + CONFIGURE ===
 CURRENT_STEP=5
 progress_bar "$CURRENT_STEP" "$TOTAL_STEPS" "Install security tools (~1-2 min)"
@@ -1003,10 +1083,12 @@ else
     sudo systemctl start apparmor
     log "AppArmor installed and enabled"
 fi
+    checkpoint_mark_done "tools"
 }
 configure_security_tools
 
 configure_ufw() {
+    [ "${DONE_firewall:-0}" = "1" ] && return 0
 # === STEP 6: CONFIGURE FIREWALL ===
 # Firewall MUST be configured BEFORE Fail2Ban so that:
 # 1. Fail2Ban starts with a working firewall underneath
@@ -1041,18 +1123,21 @@ enabled = true
 port = 22,$SSH_PORT
 filter = sshd
 backend = systemd
-maxretry = 3
-bantime = 86400
-findtime = 600
+mode = aggressive
+maxretry = 2
+bantime = 604800
+findtime = 300
 bantime.increment = true
 bantime.factor = 2
 EOF
 sudo systemctl restart fail2ban
-log "Fail2Ban configured (ports 22 and $SSH_PORT)"
+log "Fail2Ban configured (ports 22 and $SSH_PORT, aggressive mode)"
+    checkpoint_mark_done "firewall"
 }
 configure_ufw
 
 configure_ssh() {
+    [ "${DONE_ssh:-0}" = "1" ] && return 0
 # === STEP 7: CONFIGURE SSH ===
 CURRENT_STEP=7
 progress_bar "$CURRENT_STEP" "$TOTAL_STEPS" "Harden SSH"
@@ -1083,6 +1168,7 @@ PasswordAuthentication yes
 PubkeyAuthentication yes
 PermitEmptyPasswords no
 KbdInteractiveAuthentication no
+UsePAM no
 PermitUserEnvironment no
 HostbasedAuthentication no
 AllowAgentForwarding no
@@ -1136,10 +1222,12 @@ log "SSH hardened (port $SSH_PORT)"
     echo "LOG_WEEKS=$LOG_WEEKS"
     echo "CURRENT_USER=$CURRENT_USER"
 } | sudo tee -a "$CONFIG_FILE" > /dev/null
+    checkpoint_mark_done "ssh"
 }
 configure_ssh
 
 install_cloudflared() {
+    [ "${DONE_cloudflared:-0}" = "1" ] && return 0
 # === OPTIONAL: CLOUDFLARED (Cloudflare Tunnel) ===
 # Installs cloudflared and authenticates with Cloudflare.
 # The user must complete authentication via a browser URL.
@@ -1183,10 +1271,12 @@ if gum confirm "Install Cloudflare Tunnel (cloudflared) for web traffic?"; then
         warn "cloudflared installation failed — skipping"
     fi
 fi
+    checkpoint_mark_done "cloudflared"
 }
 install_cloudflared
 
 write_summary() {
+    # checkpoint_clear and mark done happen in print_final_summary
 # === SETUP COMPLETE — PREPARE SUMMARY ===
 progress_bar "$TOTAL_STEPS" "$TOTAL_STEPS" "All steps completed"
 SETUP_PHASE="ssh-test"
@@ -1396,11 +1486,12 @@ if gum confirm "Did the NEW SSH connection work?"; then
         sudo tee /etc/ssh/sshd_config.d/hardening.conf > /dev/null << EOF
 Port $SSH_PORT
 PermitRootLogin no
-PasswordAuthentication no
-PubkeyAuthentication yes
-PermitEmptyPasswords no
-KbdInteractiveAuthentication no
-PermitUserEnvironment no
+        PasswordAuthentication no
+        PubkeyAuthentication yes
+        PermitEmptyPasswords no
+        KbdInteractiveAuthentication no
+        UsePAM no
+        PermitUserEnvironment no
 HostbasedAuthentication no
 AllowAgentForwarding no
 MaxAuthTries 3
@@ -1455,9 +1546,10 @@ enabled = true
 port = $SSH_PORT
 filter = sshd
 backend = systemd
-maxretry = 3
-bantime = 86400
-findtime = 600
+mode = aggressive
+maxretry = 2
+bantime = 604800
+findtime = 300
 bantime.increment = true
 bantime.factor = 2
 EOF
@@ -1475,6 +1567,7 @@ EOF
         sudo rm -f /etc/ssh/sshd_config.d/zz-setup-keepalive.conf
 
         sudo sed -i 's/STATUS=pending_confirm/STATUS=complete/' "$USER_HOME/.vps_setup_summary"
+        checkpoint_clear
         log "Port 22 closed, password auth disabled, rebooting to finalize"
 
         # Reboot to let ssh.socket take over on the custom port
@@ -1542,6 +1635,7 @@ fi
 offer_old_user_cleanup
 
 print_final_summary() {
+    checkpoint_clear 2>/dev/null || true
 # === FINAL SUMMARY ===
 echo ""
 
