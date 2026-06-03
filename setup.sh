@@ -1511,7 +1511,7 @@ if ! tty -s 2>/dev/null; then
 fi
 
 if [ "$RESUME_MODE" = true ]; then
-    log "Resume mode — SSH already verified (connected on port $SSH_PORT)"
+    log "Resume mode — SSH already verified — auto-confirming"
 else
     gum style \
         --border rounded \
@@ -1556,7 +1556,7 @@ else
         log "Setup completed in $(( ELAPSED / 60 ))m $(( ELAPSED % 60 ))s (CONFIRM declined)"
         exit 0
     fi
-fi
+
     echo ""
     gum style \
         --border rounded \
@@ -1570,29 +1570,35 @@ fi
 
     CONFIRM_CLOSE=$(gum input --placeholder "Type CONFIRM to proceed, anything else to cancel" --prompt "> " --prompt.foreground 3)
 
-    if [ "$CONFIRM_CLOSE" = "CONFIRM" ]; then
-        echo ""
-        echo ""
-        printf "  \033[1;33mThis server will reboot in 10 seconds to finalize SSH hardening.\033[0m\n"
-        printf "  \033[1;33mReconnect with: ssh %s@%s -p %s\033[0m\n" "$NEW_USER" "$SSH_HOST" "$SSH_PORT"
-        echo ""
-        for i in 10 9 8 7 6 5 4 3 2 1; do
-            printf "\r  \033[1;31m%s...\033[0m " "$i"
-            sleep 1
-        done
-        printf "\r  \033[1;31mRebooting now...\033[0m\n"
-        echo ""
-        neutralize_ssh_auth_dropins
-        disable_cloud_init_password_auth
-        sudo tee /etc/ssh/sshd_config.d/hardening.conf > /dev/null << EOF || error "Failed to write hardening.conf"
+    if [ "$CONFIRM_CLOSE" != "CONFIRM" ]; then
+        warn "CONFIRM not entered — keeping port 22 and password auth open"
+        ELAPSED=$(( SECONDS - START_TIME ))
+        log "Setup completed in $(( ELAPSED / 60 ))m $(( ELAPSED % 60 ))s (CONFIRM declined)"
+        exit 0
+    fi
+fi
+echo ""
+echo ""
+printf "  \033[1;33mThis server will reboot in 10 seconds to finalize SSH hardening.\033[0m\n"
+printf "  \033[1;33mReconnect with: ssh %s@%s -p %s\033[0m\n" "$NEW_USER" "$SSH_HOST" "$SSH_PORT"
+echo ""
+for i in 10 9 8 7 6 5 4 3 2 1; do
+    printf "\r  \033[1;31m%s...\033[0m " "$i"
+    sleep 1
+done
+printf "\r  \033[1;31mRebooting now...\033[0m\n"
+echo ""
+neutralize_ssh_auth_dropins
+disable_cloud_init_password_auth
+sudo tee /etc/ssh/sshd_config.d/hardening.conf > /dev/null << EOF || error "Failed to write hardening.conf"
 Port $SSH_PORT
 PermitRootLogin no
-        PasswordAuthentication no
-        PubkeyAuthentication yes
-        PermitEmptyPasswords no
-        KbdInteractiveAuthentication no
-        UsePAM no
-        PermitUserEnvironment no
+PasswordAuthentication no
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+KbdInteractiveAuthentication no
+UsePAM no
+PermitUserEnvironment no
 HostbasedAuthentication no
 AllowAgentForwarding no
 MaxAuthTries 3
@@ -1612,36 +1618,36 @@ Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.
 MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
 KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512
 EOF
-        sudo /usr/sbin/sshd -t || error "SSH config validation failed"
-        assert_effective_ssh_option "passwordauthentication" "no"
-        assert_effective_ssh_option "pubkeyauthentication" "yes"
-        assert_effective_ssh_option "kbdinteractiveauthentication" "no"
+sudo /usr/sbin/sshd -t || error "SSH config validation failed"
+assert_effective_ssh_option "passwordauthentication" "no"
+assert_effective_ssh_option "pubkeyauthentication" "yes"
+assert_effective_ssh_option "kbdinteractiveauthentication" "no"
 
-        # Write ssh.socket override for next reboot (do NOT restart ssh.socket —
-        # it fails when ssh.service is active and causes ECONNREFUSED).
-        # The standalone sshd continues serving the custom port until reboot,
-        # then ssh.socket takes over automatically.
-        sudo mkdir -p /etc/systemd/system/ssh.socket.d || error "Failed to create ssh.socket drop-in directory"
-        sudo tee /etc/systemd/system/ssh.socket.d/override.conf > /dev/null << EOF || error "Failed to write ssh.socket override"
+# Write ssh.socket override for next reboot (do NOT restart ssh.socket —
+# it fails when ssh.service is active and causes ECONNREFUSED).
+# The standalone sshd continues serving the custom port until reboot,
+# then ssh.socket takes over automatically.
+sudo mkdir -p /etc/systemd/system/ssh.socket.d || error "Failed to create ssh.socket drop-in directory"
+sudo tee /etc/systemd/system/ssh.socket.d/override.conf > /dev/null << EOF || error "Failed to write ssh.socket override"
 [Socket]
 ListenStream=
 ListenStream=0.0.0.0:$SSH_PORT
 ListenStream=[::]:$SSH_PORT
 EOF
-        sudo systemctl daemon-reload || error "systemctl daemon-reload failed"
+sudo systemctl daemon-reload || error "systemctl daemon-reload failed"
 
-        # Reload standalone sshd to pick up the new hardening.conf
-        if [ -f /run/sshd-hardened.pid ]; then
-            sudo kill -HUP "$(cat /run/sshd-hardened.pid)" 2>/dev/null || true
-        fi
+# Reload standalone sshd to pick up the new hardening.conf
+if [ -f /run/sshd-hardened.pid ]; then
+    sudo kill -HUP "$(cat /run/sshd-hardened.pid)" 2>/dev/null || true
+fi
 
-        # Stop ssh.socket/ssh.service on port 22 (no longer needed)
-        sudo systemctl stop ssh.socket 2>/dev/null || true
-        sudo systemctl stop ssh.service 2>/dev/null || true
+# Stop ssh.socket/ssh.service on port 22 (no longer needed)
+sudo systemctl stop ssh.socket 2>/dev/null || true
+sudo systemctl stop ssh.service 2>/dev/null || true
 
-        sudo ufw delete allow 22/tcp > /dev/null 2>&1 || true
+sudo ufw delete allow 22/tcp > /dev/null 2>&1 || true
 
-        sudo tee /etc/fail2ban/jail.local > /dev/null << EOF || error "Failed to write fail2ban config"
+sudo tee /etc/fail2ban/jail.local > /dev/null << EOF || error "Failed to write fail2ban config"
 [sshd]
 enabled = true
 port = $SSH_PORT
@@ -1654,29 +1660,26 @@ findtime = 300
 bantime.increment = true
 bantime.factor = 2
 EOF
-        sudo systemctl restart fail2ban || error "Failed to restart fail2ban"
+sudo systemctl restart fail2ban || error "Failed to restart fail2ban"
 
-        sudo ufw limit "$SSH_PORT/tcp" > /dev/null || error "Failed to limit SSH port in UFW"
-        sudo ufw delete allow "$SSH_PORT/tcp" > /dev/null || error "Failed to delete UFW allow rule for SSH port"
+sudo ufw limit "$SSH_PORT/tcp" > /dev/null || error "Failed to limit SSH port in UFW"
+sudo ufw delete allow "$SSH_PORT/tcp" > /dev/null || error "Failed to delete UFW allow rule for SSH port"
 
-        # Lock audit rules now that setup is confirmed
-        echo "-e 2" | sudo tee -a /etc/audit/rules.d/hardening.rules > /dev/null || error "Failed to lock audit rules"
-        sudo systemctl restart auditd 2>/dev/null || true
-        log "Audit rules locked (immutable)"
+# Lock audit rules now that setup is confirmed
+echo "-e 2" | sudo tee -a /etc/audit/rules.d/hardening.rules > /dev/null || error "Failed to lock audit rules"
+sudo systemctl restart auditd 2>/dev/null || true
+log "Audit rules locked (immutable)"
 
-        # Remove temporary setup files (keep sshd_test_config — standalone sshd needs it until reboot)
-        sudo rm -f /etc/ssh/sshd_config.d/zz-setup-keepalive.conf
+# Remove temporary setup files (keep sshd_test_config — standalone sshd needs it until reboot)
+sudo rm -f /etc/ssh/sshd_config.d/zz-setup-keepalive.conf
 
-        sudo sed -i 's/STATUS=pending_confirm/STATUS=complete/' "$USER_HOME/.vps_setup_summary" || error "Failed to update setup summary status"
-        sudo touch "$HARDENING_DONE_FILE"
-        checkpoint_clear
-        log "Port 22 closed, password auth disabled, rebooting to finalize"
+sudo sed -i 's/STATUS=pending_confirm/STATUS=complete/' "$USER_HOME/.vps_setup_summary" || error "Failed to update setup summary status"
+sudo touch "$HARDENING_DONE_FILE"
+checkpoint_clear
+log "Port 22 closed, password auth disabled, rebooting to finalize"
 
-        # Reboot to let ssh.socket take over on the custom port
-        sudo shutdown -r now --no-wall 2>/dev/null || sudo reboot
-    else
-        warn "Confirmation cancelled — keeping port 22 and password auth open"
-    fi
+# Reboot to let ssh.socket take over on the custom port
+sudo shutdown -r now --no-wall 2>/dev/null || sudo reboot
 }
 finalize_confirm
 
