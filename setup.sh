@@ -181,6 +181,7 @@ cleanup_on_error() {
             printf "  \033[1;33m[!] Restoring SSH access on port 22...\033[0m\n"
             sudo ufw allow 22/tcp 2>/dev/null || true
             restore_ssh_auth_dropin_backups
+            sudo sed -i 's/^# VPS-HARDENING: PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null || true
             sudo rm -f /etc/cloud/cloud.cfg.d/99-vps-hardening-ssh.cfg 2>/dev/null || true
             sudo rm -f /etc/ssh/sshd_config.d/zz-setup-keepalive.conf 2>/dev/null || true
             sudo rm -f /etc/systemd/system/ssh.socket.d/override.conf 2>/dev/null || true
@@ -1607,6 +1608,12 @@ Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.
 MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
 KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512
 EOF
+
+# Neutralize PasswordAuthentication yes in the main sshd_config if it
+# appears after the Include directive, so it does not override our
+# hardening.conf's PasswordAuthentication no.
+sudo sed -i 's/^[[:space:]]*PasswordAuthentication[[:space:]]\+yes/# VPS-HARDENING: PasswordAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null || true
+
 sudo /usr/sbin/sshd -t || error "SSH config validation failed"
 assert_effective_ssh_option "passwordauthentication" "no"
 assert_effective_ssh_option "pubkeyauthentication" "yes"
