@@ -277,7 +277,7 @@ run_with_spinner "Installing Docker prerequisites" sudo apt-get install -y -qq c
 sudo install -m 0755 -d /etc/apt/keyrings
 DOCKER_GPG_TMP=$(mktemp)
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$DOCKER_GPG_TMP"
-DOCKER_FP=$(gpg --with-colons --import-options show-only --import "$DOCKER_GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
+DOCKER_FP=$(gpg --with-colons --import-options show-only --import "$DOCKER_GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/ && !f {print $10; f=1}')
 EXPECTED_DOCKER_FP="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
 if [ "$DOCKER_FP" != "$EXPECTED_DOCKER_FP" ]; then
     rm -f "$DOCKER_GPG_TMP"

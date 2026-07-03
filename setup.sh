@@ -119,7 +119,7 @@ checkpoint_clear() {
 HARDENING_DONE_FILE="/etc/.vps_hardening_done"
 if [ -f "$HARDENING_DONE_FILE" ]; then
     [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
-    LOCAL_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127' | head -1)
+    LOCAL_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '^127' | awk 'NR==1')
     PUBLIC_IP=$(curl -s --max-time 5 -4 ifconfig.me 2>/dev/null || echo "$LOCAL_IP")
     SSH_HOST="$PUBLIC_IP"
     echo ""
@@ -187,6 +187,10 @@ cleanup_on_error() {
             sudo rm -f /etc/systemd/system/ssh.socket.d/override.conf 2>/dev/null || true
             sudo rmdir /etc/systemd/system/ssh.socket.d 2>/dev/null || true
             sudo systemctl daemon-reload 2>/dev/null || true
+            # A daemon-reload leaves ssh.socket "not functional until restarted";
+            # restart it so port 22 actually keeps listening after the revert.
+            sudo systemctl stop ssh.service 2>/dev/null || true
+            sudo systemctl restart ssh.socket 2>/dev/null || sudo systemctl restart ssh 2>/dev/null || true
             printf "  \033[1;33m[!] Port 22 restored. Your session should be intact.\033[0m\n"
         fi
     fi
@@ -203,7 +207,7 @@ install_gum() {
     curl -fsSL https://repo.charm.sh/apt/gpg.key -o "$GPG_TMP"
     # Verify GPG key fingerprint before trusting
     local CHARM_FP
-    CHARM_FP=$(gpg --with-colons --import-options show-only --import "$GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')
+    CHARM_FP=$(gpg --with-colons --import-options show-only --import "$GPG_TMP" 2>/dev/null | awk -F: '/^fpr:/ && !f {print $10; f=1}')
     local EXPECTED_FP="ED927B38BE981E53CA09153D03BBF595D4DFD35C"
     if [ "$CHARM_FP" != "$EXPECTED_FP" ]; then
         rm -f "$GPG_TMP"
@@ -343,9 +347,14 @@ neutralize_ssh_auth_dropins() {
 assert_effective_ssh_option() {
     local option="$1"
     local expected="$2"
-    local actual
+    local actual sshd_output
 
-    actual=$(sudo /usr/sbin/sshd -T 2>/dev/null | awk -v opt="$option" '$1 == opt {print $2; exit}')
+    # Capture sshd -T into a variable first (no pipe). Piping sshd -T into an
+    # awk that exits on the first match closes the pipe early; sshd -T then gets
+    # SIGPIPE (exit 141), which under `set -o pipefail` + `set -e` kills the
+    # script silently, mid-lockdown, with no logged error.
+    sshd_output=$(sudo /usr/sbin/sshd -T 2>/dev/null) || error "Could not read effective SSH config (sshd -T failed) while checking '$option'"
+    actual=$(printf '%s\n' "$sshd_output" | awk -v opt="$option" '$1 == opt {value=$2} END {print value}')
     if [ "$actual" != "$expected" ]; then
         error "Effective SSH option '$option' is '$actual' (expected '$expected'). Check /etc/ssh/sshd_config.d/*.conf for conflicting directives."
     fi
@@ -648,7 +657,7 @@ else
     while true; do
         input_banner "Paste your SSH public key (ssh-ed25519 or ssh-rsa)"
         INPUT_SSH_KEY=$(gum write --placeholder "Paste your key here (ssh-ed25519 AAAA... or ssh-rsa AAAA...) then press Ctrl+D" --width 120 --char-limit 0)
-        INPUT_SSH_KEY=$(echo "$INPUT_SSH_KEY" | tr -d '\r' | sed '/^[[:space:]]*$/d' | head -n 1)
+        INPUT_SSH_KEY=$(echo "$INPUT_SSH_KEY" | tr -d '\r' | sed '/^[[:space:]]*$/d' | awk 'NR==1')
         if [ -z "$INPUT_SSH_KEY" ]; then
             warn "SSH public key cannot be empty."
             warn "Example: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... your-name"
