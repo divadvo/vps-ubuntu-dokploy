@@ -889,9 +889,10 @@ if [ ! -f /swapfile ]; then
         SWAP_LABEL="$(( SWAP_SIZE_MB / 1024 ))GB"
         run_with_spinner "Creating ${SWAP_LABEL} swap file" bash -c "sudo fallocate -l ${SWAP_SIZE_MB}M /swapfile 2>/dev/null || { sudo rm -f /swapfile && sudo dd if=/dev/zero of=/swapfile bs=1M count=${SWAP_SIZE_MB} status=none; } && sudo chmod 600 /swapfile && sudo mkswap /swapfile > /dev/null && sudo swapon /swapfile"
         grep -q '/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
-        if ! grep -q "vm.swappiness" /etc/sysctl.conf; then
-            echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf > /dev/null
-            sudo sysctl -p > /dev/null
+        # Ubuntu 26.04 ships without /etc/sysctl.conf; use a drop-in instead.
+        if ! grep -qrs "vm.swappiness" /etc/sysctl.conf /etc/sysctl.d/; then
+            echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf > /dev/null
+            sudo sysctl -p /etc/sysctl.d/99-swappiness.conf > /dev/null
         fi
         log "Swap configured (${SWAP_LABEL}, swappiness=10)"
     else
