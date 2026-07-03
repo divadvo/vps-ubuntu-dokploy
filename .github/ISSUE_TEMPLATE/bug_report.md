@@ -10,7 +10,7 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 ## 📋 Environment
-- **Ubuntu Version:** (e.g., 24.04 LTS)
+- **Ubuntu Version:** (e.g., 26.04 LTS)
 - **Commit:** (run `git log -1 --oneline` on the server)
 - **VPS Provider:** (e.g., OVH, DigitalOcean, AWS)
 - **Installation Method:** (e.g., git clone, curl)
@@ -42,4 +42,4 @@ Add any other context about the problem here.
 - [ ] I have read the [README.md](../README.md)
 - [ ] I have checked existing issues
 - [ ] I have included relevant logs
-- [ ] I have tested on a fresh Ubuntu 24.04 installation
+- [ ] I have tested on a fresh Ubuntu 24.04 or 26.04 installation

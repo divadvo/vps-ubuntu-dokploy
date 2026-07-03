@@ -103,13 +103,13 @@ This project uses release tags named `release-<version>`.
 ### Changed
 - Added sudo SSH and IPv6 audit checks.
 
-[1.0.16]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.16
-[1.0.15]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.15
-[1.0.14]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.14
-[1.0.13]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.13
-[1.0.12]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.12
-[1.0.11]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.11
-[1.0.10]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.10
-[1.0.9]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.9
-[1.0.8]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.8
-[1.0.7]: https://github.com/alexandreravelli/vps-ubuntu-24-04-hardening-dokploy/releases/tag/release-1.0.7
+[1.0.16]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.16
+[1.0.15]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.15
+[1.0.14]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.14
+[1.0.13]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.13
+[1.0.12]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.12
+[1.0.11]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.11
+[1.0.10]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.10
+[1.0.9]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.9
+[1.0.8]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.8
+[1.0.7]: https://github.com/divadvo/vps-ubuntu-dokploy/releases/tag/release-1.0.7

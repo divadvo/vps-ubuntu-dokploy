@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Ubuntu">
+  <img src="https://img.shields.io/badge/Ubuntu-26.04%20LTS-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Ubuntu">
   <img src="https://img.shields.io/badge/Shell-Bash-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="Bash">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License">
@@ -8,7 +8,7 @@
 <h1 align="center">VPS Hardening Script</h1>
 
 <p align="center">
-  <strong>A pragmatic hardening baseline for fresh Ubuntu 24.04 VPS servers.</strong><br>
+  <strong>A pragmatic hardening baseline for fresh Ubuntu 26.04 VPS servers (also works on 24.04).</strong><br>
   Hardened SSH, firewall, sysctl, ASLR, Fail2Ban, auditd, auto-updates. Docker + Dokploy optional.<br><br>
   <a href="#-quick-start">Quick Start</a> · <a href="#-requirements">Requirements</a> · <a href="#%EF%B8%8F-what-it-does">What It Does</a> · <a href="#-after-installation">After Installation</a> · <a href="#-security">Security</a> · <a href="#-faq">FAQ</a>
 </p>
@@ -30,7 +30,7 @@ sudo -i
 ```
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/jeremiah-olisa/vps-ubuntu-24-04-hardening-dokploy/main/setup.sh -o setup.sh && chmod +x setup.sh && ./setup.sh
+curl -sSL https://raw.githubusercontent.com/divadvo/vps-ubuntu-dokploy/main/setup.sh -o setup.sh && chmod +x setup.sh && ./setup.sh
 ```
 
 The script answers all your questions first, then applies hardening automatically. If your SSH session drops during hardening, the script continues in the background — reconnect with `sudo screen -r hardening`.
@@ -50,7 +50,7 @@ sudo ./install-dokploy.sh
 
 ## 📝 Requirements
 
-- Fresh **Ubuntu 24.04 LTS** VPS
+- Fresh **Ubuntu 26.04 LTS** VPS (also works on 24.04 LTS)
 - User with **sudo** privileges
 - SSH public key ready (`ssh-ed25519` or `ssh-rsa`) — or let the script generate one
 
@@ -347,7 +347,7 @@ The script applies a production-oriented hardening baseline with **5 security la
 | APT lock handling | Waits up to 120s for `unattended-upgrades` to release dpkg lock on fresh VPS |
 | No lockout | Password auth stays on until you confirm the new SSH session works |
 | Auto-lockdown | If Phase 3 CONFIRM is not completed within 24h, port 22 and password auth are automatically closed |
-| Supply chain | Charm and Docker repositories use GPG fingerprint verification; project scripts are pinned to release tag (`release-1.0.16`) instead of `main` |
+| Supply chain | Charm and Docker repositories use GPG fingerprint verification. Post-install scripts are fetched from `main` and checked against `SHA256SUMS`; for a fully verifiable copy, `git clone` the repo onto the server so `setup.sh` uses the local scripts and skips the download |
 | Dokploy installer | Downloaded at runtime and logged before execution; it remains a third-party installer |
 | Safe config parsing | `install-dokploy.sh` reads config via whitelist (no `source` / code execution) |
 | Log | Full log saved to `/var/log/vps_setup.log` |
@@ -447,7 +447,7 @@ Yes. Run `setup.sh` for hardening, then install your preferred PaaS manually. Th
 <details>
 <summary><strong>Does it work on other Ubuntu versions?</strong></summary>
 
-Tested on 24.04 LTS only. Ubuntu 22.04 is **not supported** (different SSH service management).
+Supported on Ubuntu 24.04 and 26.04 LTS. Apt sources resolve the release codename dynamically, so no version is hardcoded. Ubuntu 22.04 is **not supported** (different SSH service management).
 </details>
 
 ---
@@ -481,5 +481,5 @@ Tested on 24.04 LTS only. Ubuntu 22.04 is **not supported** (different SSH servi
 MIT — see [LICENSE](LICENSE)
 
 <p align="center">
-  <sub>Built with <a href="https://github.com/charmbracelet/gum">gum</a> (Charmbracelet) · Tested on Ubuntu 24.04 LTS</sub>
+  <sub>Built with <a href="https://github.com/charmbracelet/gum">gum</a> (Charmbracelet) · For Ubuntu 24.04 / 26.04 LTS</sub>
 </p>

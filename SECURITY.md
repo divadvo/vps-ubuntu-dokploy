@@ -2,14 +2,14 @@
 
 ## Supported Versions
 
-This project targets fresh Ubuntu 24.04 LTS VPS servers.
+This project targets fresh Ubuntu 24.04 and 26.04 LTS VPS servers.
 
 | Version | Supported |
 |---------|-----------|
-| `release-1.0.13` and newer | Yes |
-| Older releases | Best effort only |
+| Latest `main` | Yes |
+| Older commits | Best effort only |
 
-Fresh installations should always use the latest tagged release instead of `main`.
+Fresh installations should use the latest `main`. For a verifiable copy, `git clone` the repo onto the server so `setup.sh` runs the local scripts (see `PUBLISHING.md`).
 
 ## Reporting a Vulnerability
 
@@ -17,7 +17,7 @@ Please do not open a public GitHub issue for security vulnerabilities.
 
 If you believe you found a vulnerability, report it privately using GitHub Security Advisories when available, or contact the maintainer directly:
 
-- GitHub: `@alexandreravelli`
+- GitHub: `@divadvo`
 Include as much detail as possible:
 
 - Affected script and release tag

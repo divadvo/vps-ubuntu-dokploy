@@ -2,7 +2,7 @@
 
 Thanks for helping improve this project.
 
-This repository contains root-level hardening scripts for fresh Ubuntu 24.04 VPS servers, so changes should be conservative, easy to review, and explicit about their operational impact.
+This repository contains root-level hardening scripts for fresh Ubuntu 24.04 / 26.04 VPS servers, so changes should be conservative, easy to review, and explicit about their operational impact.
 
 ## Development Rules
 
@@ -34,7 +34,7 @@ If your change touches Gum installation, verify that the Charm GPG fingerprint r
 
 ## Testing Guidance
 
-For behavior changes, prefer validation on a fresh Ubuntu 24.04 LTS VPS.
+For behavior changes, prefer validation on a fresh Ubuntu 26.04 LTS VPS (or 24.04 LTS).
 
 At minimum, document:
 

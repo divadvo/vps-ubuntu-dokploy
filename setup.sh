@@ -1,7 +1,7 @@
 #!/bin/bash
 # VPS Hardening Script
-# Ubuntu 24.04 LTS
-# https://github.com/jeremiah-olisa/vps-ubuntu-24-04-hardening-dokploy
+# Ubuntu 24.04 / 26.04 LTS
+# https://github.com/divadvo/vps-ubuntu-dokploy
 # Usage: sudo bash setup.sh
 #
 # Architecture:
@@ -400,7 +400,7 @@ gum style \
     --align center \
     "VPS HARDENING SCRIPT" \
     "" \
-    "Harden a fresh Ubuntu 24.04 VPS in about 5-10 minutes" \
+    "Harden a fresh Ubuntu 24.04/26.04 VPS in about 5-10 minutes" \
     "7 steps · Key-only SSH · Firewall · Kernel hardening"
 
 echo ""
@@ -420,7 +420,7 @@ echo ""
 gum style --bold --foreground 2 "  PREREQUISITES"
 gum style --foreground 240 "  ────────────────────────────────────────────────"
 echo ""
-printf "  $(gum style --foreground 2 '✓')  Fresh Ubuntu 24.04 LTS VPS\n"
+printf "  $(gum style --foreground 2 '✓')  Fresh Ubuntu 24.04/26.04 LTS VPS\n"
 printf "  $(gum style --foreground 2 '✓')  User with sudo privileges\n"
 printf "  $(gum style --foreground 2 '✓')  SSH public key (ed25519) — or generate one\n"
 echo ""
@@ -724,8 +724,8 @@ echo "SSH_PORT=$SSH_PORT" | sudo tee "$CONFIG_FILE" > /dev/null
 echo "SCREEN_RECOVERY=sudo screen -r hardening" | sudo tee -a "$CONFIG_FILE" > /dev/null
 sudo chmod 600 "$CONFIG_FILE"
 
-if ! grep -q "Ubuntu 24" /etc/os-release 2>/dev/null; then
-    warn "This script is designed for Ubuntu 24.04 LTS"
+if ! grep -Eq "Ubuntu (24\.04|26\.04)" /etc/os-release 2>/dev/null; then
+    warn "This script is designed for Ubuntu 24.04 / 26.04 LTS"
 fi
 if ! curl -s --max-time 5 https://api.ipify.org &>/dev/null; then
     error "No internet connection (TCP/443 unreachable)"
@@ -1397,9 +1397,10 @@ LOCAL_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 USED_LOCAL_SCRIPTS=false
 LOCAL_SCRIPT_SET_COMPLETE=true
 POST_INSTALL_SCRIPTS=(cleanup.sh check.sh purge.sh install-dokploy.sh allow-docker-port.sh remove-docker-port.sh)
-# Pin to release tag so a compromised main branch cannot inject code into
-# servers that already ran setup.sh with this version.
-REPO_BASE="https://raw.githubusercontent.com/jeremiah-olisa/vps-ubuntu-24-04-hardening-dokploy/main"
+# Fetched from the repo's main branch. For a verifiable local copy, git-clone the
+# repo onto the server instead — setup.sh then uses the local scripts and skips
+# this download entirely (see PUBLISHING.md).
+REPO_BASE="https://raw.githubusercontent.com/divadvo/vps-ubuntu-dokploy/main"
 
 for script in "${POST_INSTALL_SCRIPTS[@]}"; do
     [ -f "$LOCAL_SCRIPT_DIR/$script" ] || LOCAL_SCRIPT_SET_COMPLETE=false
@@ -1416,7 +1417,7 @@ for script in "${POST_INSTALL_SCRIPTS[@]}"; do
     elif curl -sSL --fail "$REPO_BASE/$script" -o "$SCRIPTS_DIR/$script" 2>/dev/null; then
         sudo chmod +x "$SCRIPTS_DIR/$script"
     else
-        error "Could not download $script from release-${VERSION}"
+        error "Could not download $script from $REPO_BASE"
     fi
 done
 

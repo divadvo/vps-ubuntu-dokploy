@@ -20,7 +20,7 @@ Fixes #(issue number)
 
 ## 🧪 Testing
 <!-- Describe the tests you ran to verify your changes -->
-- [ ] Tested on fresh Ubuntu 24.04 LTS installation
+- [ ] Tested on fresh Ubuntu 24.04 / 26.04 LTS installation
 - [ ] All scripts pass syntax check (`bash -n script.sh`)
 - [ ] No sensitive data in commits
 - [ ] Documentation updated
@@ -40,7 +40,7 @@ Fixes #(issue number)
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings or errors
-- [ ] I have tested my changes on Ubuntu 24.04 LTS
+- [ ] I have tested my changes on Ubuntu 24.04 / 26.04 LTS
 - [ ] Any dependent changes have been merged and published
 - [ ] No sensitive information (passwords, keys, IPs) in commits
 
